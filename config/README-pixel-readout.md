@@ -11,18 +11,20 @@ Select the configuration for the desired output:
 
 - [Native](odd-digi-geometric-config.json): original configuration, without
   quantization settings (default).
-- [Four-bit P99.9](odd-digi-geometric-config-pixel-4bit-p999.json): quantization
+- [Four-bit pixel quantization](odd-digi-geometric-config-pixel-4bit.json): quantization
   enabled for pixel volumes 16, 17 and 18. Only the three pixel response blocks
   are added to the native configuration; all strip settings remain unchanged.
 
 ColliderML-Production accepts either file through its existing option:
 
 ```bash
---digi-config /path/to/ODD/config/odd-digi-geometric-config-pixel-4bit-p999.json
+--digi-config /path/to/ODD/config/odd-digi-geometric-config-pixel-4bit.json
 ```
 
-To return to native output, select `odd-digi-geometric-config.json`. Do not
-enable quantization for entries with `digital=true`.
+A `charge-quantization` block enables quantization by its presence; there is no
+`enabled` flag. To return to native output, select
+`odd-digi-geometric-config.json` or remove the block. Do not add it to entries
+with `digital=true`.
 
 ACTS keeps its existing per-contribution charge smearing and thresholding, sums
 accepted native contributions at identical channel addresses, then encodes each
@@ -31,7 +33,7 @@ keep their existing behavior. Code weights determine the final measurement
 position and the existing weighted uncertainty calculation. There is no added
 noise, decoding, or second suppression threshold.
 
-## Response and studied settings
+## Response and configuration
 
 For accepted activation `a`, `M = 2**bits - 1`:
 
@@ -41,7 +43,8 @@ code = clamp(1 + floor((a - offset) / step), 1, M)
 
 Boundary ties go into the upper bin. Zero is reserved for absent/suppressed
 channels. Every retained channel receives a positive code. Four-bit output uses
-codes 1–15; eight-bit output uses 1–255. Supported bit depths are 1–16.
+codes 1–15; eight-bit output uses 1–255. Supported bit depths are 1–24,
+so all integer codes remain exact in the existing float32 cell writers.
 
 The existing cell activation/value field contains the code for enabled pixel
 entries. Other detector entries retain native values: do not treat the entire
@@ -50,18 +53,19 @@ configuration. Writer field types are unchanged; this is finite-precision
 information, not packed four-bit storage. Native and code values can be studied
 in separate runs using identical inputs and random seeds.
 
-The enabled configuration uses the following fixed P99.9 four-bit parameters.
-For P99.5 or P99, change only `step` in its three pixel blocks; these alternatives
-do not require additional bundled detector configurations.
+The chosen four-bit configuration uses `offset: 0.01` and `step: 0.01`.
+The table also gives bin widths from the percentile study; select one by changing
+`step` in the three pixel blocks.
 
-| Historical preset | `offset` | `step` |
+| Setting | `offset` | `step` |
 | --- | ---: | ---: |
-| P99.9 (example default) | 0.01 | 0.011105528959000351 |
+| Chosen configuration | 0.01 | 0.01 |
+| P99.9 | 0.01 | 0.011105528959000351 |
 | P99.5 | 0.01 | 0.009409294367857142 |
 | P99 | 0.01 | 0.009057082750000002 |
 
-These parameters came from 13,285,319 pixel cells in ColliderML ttbar pu200 v1,
-run 0, calibration events 0–24 (validation events 25–49), using ACTS
+The percentile settings were derived from 13,285,319 pixel cells in ColliderML
+ttbar pu200 v1, run 0, calibration events 0–24 (validation events 25–49), using ACTS
 `7cba36b173dd73a14342cc65043a43179a4b1dbd`, ODD v4.0.4
 `b0992c148305224899a16d21fcd56406408bd393`. Input EDM4hep SHA256:
 `7656dca207dfc96bb37c67ac524a6966d1a3ad10ebaaa4a9d3c0d493a874996f`;
@@ -81,12 +85,12 @@ For the same maximum-code entry point at a different bit depth, use:
 step_new = step_4bit * 14 / (2**bits_new - 2)
 ```
 
-For example, use `bits: 8`, `offset: 0.01`, and
-`step: 0.0006121157693937201` for the P99.9 range. This relation applies for
+For eight-bit readout with the same activation range, use `bits: 8`,
+`offset: 0.01`, and `step` approximately `0.00055118`. This relation applies for
 `bits_new >= 2`; one-bit positive readout has only code 1.
 
 The maximum code begins at `offset + (M-1)*step`. Its nominal bin extends to
 `offset + M*step`; only values beyond this latter boundary are the clipped
-overflow tail. For P99.9 at four bits those points are approximately
-0.1654774054 and 0.1765829344 mm. Therefore the fraction assigned code 15 and
+overflow tail. For the chosen four-bit configuration those points are
+0.15 and 0.16 mm. Therefore the fraction assigned code 15 and
 the fraction beyond its nominal bin are different statistics.
